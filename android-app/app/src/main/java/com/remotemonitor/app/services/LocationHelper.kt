@@ -38,37 +38,37 @@ class LocationHelper(private val context: Context) {
         }
 
         try {
-            val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-            val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-            
-            // Get last known location immediately
-            if (isNetworkEnabled) {
-                locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)?.let { loc ->
-                    locationListener?.onLocationChanged(loc)
+            val providers = listOf(
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.GPS_PROVIDER,
+                "fused" // LocationManager.FUSED_PROVIDER (API 31+)
+            )
+
+            var anyProviderStarted = false
+
+            for (provider in providers) {
+                try {
+                    if (locationManager.isProviderEnabled(provider)) {
+                        locationManager.getLastKnownLocation(provider)?.let { loc ->
+                            locationListener?.onLocationChanged(loc)
+                        }
+                        locationManager.requestLocationUpdates(
+                            provider,
+                            intervalMs,
+                            0f,
+                            locationListener!!,
+                            Looper.getMainLooper()
+                        )
+                        anyProviderStarted = true
+                    }
+                } catch (e: Exception) {
+                    // Ignore if a specific provider fails (e.g. SecurityException or IllegalArgumentException)
                 }
-                locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    intervalMs,
-                    0f,
-                    locationListener!!,
-                    Looper.getMainLooper()
-                )
             }
-            
-            if (isGpsEnabled) {
-                locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let { loc ->
-                    locationListener?.onLocationChanged(loc)
-                }
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    intervalMs,
-                    0f,
-                    locationListener!!,
-                    Looper.getMainLooper()
-                )
+
+            if (!anyProviderStarted) {
+                locationListener = null
             }
-        } catch (e: SecurityException) {
-            locationListener = null
         } catch (e: Exception) {
             locationListener = null
         }
