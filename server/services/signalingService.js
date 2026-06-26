@@ -90,7 +90,18 @@ function attachSignaling(io) {
                      data.wifiSsid, data.signalStrength, data.publicIp, data.isScreenOn]
                 );
                 await query('UPDATE devices SET last_seen = NOW() WHERE id = $1', [device.id]);
-                notifyViewers(device.device_token, 'status:update', { deviceToken: device.device_token, ...data });
+                
+                const mappedData = {
+                    deviceToken: device.device_token,
+                    battery_level: data.batteryLevel,
+                    is_charging: data.isCharging,
+                    network_type: data.networkType,
+                    wifi_ssid: data.wifiSsid,
+                    signal_strength: data.signalStrength,
+                    public_ip: data.publicIp,
+                    is_screen_on: data.isScreenOn
+                };
+                notifyViewers(device.device_token, 'status:update', mappedData);
             } catch (e) {
                 logger.error('status:update DB error', { error: e.message });
             }

@@ -14,6 +14,7 @@ let selectedDevice    = null;
 let isStreaming       = false;
 let audioMuted        = false;
 let remoteStream      = null;
+let cameraIsMain      = false;
 
 // ── DOM ───────────────────────────────────────────────────
 const deviceSelect    = document.getElementById('deviceSelect');
@@ -27,6 +28,7 @@ const startStreamBtn  = document.getElementById('startStreamBtn');
 const stopStreamBtn   = document.getElementById('stopStreamBtn');
 const muteAudioBtn    = document.getElementById('muteAudioBtn');
 const fullscreenBtn   = document.getElementById('fullscreenBtn');
+const toggleCamBtn    = document.getElementById('toggleCamBtn');
 
 // ── Load devices into select ──────────────────────────────
 async function loadDeviceOptions() {
@@ -137,19 +139,24 @@ async function ensurePeerConnection() {
         if (!stream) return;
         remoteStream = stream;
 
-        const videoTracks = stream.getVideoTracks();
-        const audioTracks = stream.getAudioTracks();
+        updateVideoLayout();
 
+        const videoTracks = stream.getVideoTracks();
         if (videoTracks.length > 0) {
-            screenVideo.srcObject = stream;
             screenVideo.style.display = '';
             screenPlaceholder.style.display = 'none';
             liveBadge.style.display = '';
-            // Play is required for some browsers when autoplay is restricted
-            screenVideo.play().catch(e => console.error("Video play failed", e));
+            screenVideo.play().catch(e => console.error("Screen play failed", e));
+        }
+
+        if (videoTracks.length > 1) {
+            cameraVideo.style.display = '';
+            cameraPlaceholder.style.display = 'none';
+            cameraVideo.play().catch(e => console.error("Camera play failed", e));
         }
 
         // Bind audio
+        const audioTracks = stream.getAudioTracks();
         if (audioTracks.length > 0 && !audioMuted) {
             screenVideo.muted = false;
         }
@@ -199,6 +206,13 @@ function stopStream() {
 }
 
 // ── Controls ──────────────────────────────────────────────
+if (toggleCamBtn) {
+    toggleCamBtn.addEventListener('click', () => {
+        cameraIsMain = !cameraIsMain;
+        updateVideoLayout();
+    });
+}
+
 muteAudioBtn.addEventListener('click', () => {
     audioMuted = !audioMuted;
     if (screenVideo.srcObject) screenVideo.muted = audioMuted;
@@ -212,6 +226,21 @@ fullscreenBtn.addEventListener('click', () => {
 });
 
 // ── Helpers ───────────────────────────────────────────────
+function updateVideoLayout() {
+    if (!remoteStream) return;
+    const videoTracks = remoteStream.getVideoTracks();
+    if (videoTracks.length === 0) return;
+
+    if (cameraIsMain && videoTracks.length > 1) {
+        screenVideo.srcObject = new MediaStream([videoTracks[1]]);
+        cameraVideo.srcObject = new MediaStream([videoTracks[0]]);
+    } else {
+        screenVideo.srcObject = new MediaStream([videoTracks[0]]);
+        if (videoTracks.length > 1) {
+            cameraVideo.srcObject = new MediaStream([videoTracks[1]]);
+        }
+    }
+}
 function setStatus(text, cls) {
     liveStatus.className  = `chip ${cls}`;
     liveStatus.textContent = text;
