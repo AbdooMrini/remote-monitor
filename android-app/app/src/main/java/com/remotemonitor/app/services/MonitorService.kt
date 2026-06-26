@@ -309,14 +309,15 @@ class MonitorService : LifecycleService() {
                         audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
                         val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
                         localStream!!.addTrack(audioTrack)
-                        peerConnection!!.addTrack(audioTrack, listOf("local_stream"))
+                        peerConnection?.addTrack(audioTrack, listOf("local_stream"))
+                        
+                        // renegotiate offer since we added a track
+                        serviceScope.launch { createOffer(data.optString("viewerSocketId")) }
                     } else {
                         localStream?.audioTracks?.forEach { it.setEnabled(true) }
                     }
                 } else {
                     localStream?.audioTracks?.forEach { it.setEnabled(false) }
-                    audioSource?.dispose()
-                    audioSource = null
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to toggle mic: ${e.message}")
