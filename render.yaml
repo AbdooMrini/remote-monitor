@@ -1,0 +1,78 @@
+# ============================================================
+# render.yaml — Render.com Blueprint (Infrastructure as Code)
+# Docs: https://render.com/docs/blueprint-spec
+# ============================================================
+
+services:
+  # ── Node.js Web Service ─────────────────────────────────
+  - type: web
+    name: remote-monitor-server
+    runtime: node
+    region: frankfurt          # nearest to Europe (free tier)
+    plan: free
+    branch: main
+    rootDir: .
+    buildCommand: cd server && npm install
+    startCommand: node server/index.js
+    healthCheckPath: /health
+
+    # Auto-deploy on every push to main
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: 10000            # Render uses 10000 by default
+
+      # ── JWT ──────────────────────────────────────────────
+      - key: JWT_SECRET
+        generateValue: true     # Render generates a random value automatically
+
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      - key: JWT_EXPIRES_IN
+        value: 24h
+
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+
+      # ── MySQL (external — see README for free options) ────
+      - key: DB_HOST
+        sync: false             # Set manually in Render dashboard
+
+      - key: DB_PORT
+        value: "3306"
+
+      - key: DB_USER
+        sync: false
+
+      - key: DB_PASSWORD
+        sync: false
+
+      - key: DB_NAME
+        value: remote_monitor
+
+      - key: DB_POOL_SIZE
+        value: "3"              # Keep low on free tier
+
+      # ── CORS ─────────────────────────────────────────────
+      - key: CORS_ORIGINS
+        sync: false             # Set to your Netlify URL in dashboard
+
+      # ── Rate limiting ─────────────────────────────────────
+      - key: RATE_LIMIT_MAX
+        value: "100"
+
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+
+      # ── Logging ───────────────────────────────────────────
+      - key: LOG_LEVEL
+        value: info
+
+      # ── Keep-alive (self-ping URL — set after deploy) ─────
+      - key: KEEPALIVE_URL
+        sync: false

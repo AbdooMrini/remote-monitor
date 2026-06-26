@@ -57,8 +57,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth',    authRoutes);
 app.use('/api/devices', deviceRoutes);
 
-// ── Health check ──────────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+// ── Health check (also used by Render's healthCheckPath) ──────
+app.get('/health', (_req, res) => res.json({
+    status:  'ok',
+    ts:      new Date().toISOString(),
+    uptime:  process.uptime(),
+    env:     process.env.NODE_ENV,
+}));
+
+// ── Ping endpoint (for UptimeRobot) ──────────────────────────
+app.get('/ping', (_req, res) => res.send('pong'));
 
 // ── 404 catch-all ────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ success: false, message: 'Not found.' }));
@@ -68,6 +76,34 @@ app.use((err, _req, res, _next) => {
     logger.error('Unhandled error', { error: err.message, stack: err.stack });
     res.status(500).json({ success: false, message: 'Internal server error.' });
 });
+
+// ── Keep-alive self-ping (prevents Render free tier sleep) ────
+// Pings /health every 14 minutes — Render sleeps after 15min idle
+function startKeepAlive() {
+    const selfUrl = process.env.KEEPALIVE_URL;
+    if (!selfUrl) {
+        logger.info('Keep-alive: KEEPALIVE_URL not set, skipping self-ping. Set it to your Render URL.');
+        return;
+    }
+
+    const INTERVAL_MS = 14 * 60 * 1000; // 14 minutes
+
+    setInterval(async () => {
+        try {
+            const https = selfUrl.startsWith('https') ? require('https') : require('http');
+            const req = https.get(`${selfUrl}/ping`, (res) => {
+                logger.info(`Keep-alive ping → ${res.statusCode}`);
+            });
+            req.on('error', (err) => logger.warn('Keep-alive ping failed', { error: err.message }));
+            req.end();
+        } catch (err) {
+            logger.warn('Keep-alive error', { error: err.message });
+        }
+    }, INTERVAL_MS);
+
+    logger.info(`Keep-alive: pinging ${selfUrl}/ping every 14 minutes`);
+}
+
 
 // ── Start Server ──────────────────────────────────────────────
 async function start() {
@@ -113,10 +149,13 @@ async function start() {
 
     attachSignaling(io);
 
-    // Railway injects PORT automatically
+    // Render / Railway inject PORT automatically
     const PORT = parseInt(process.env.PORT) || 3000;
     server.listen(PORT, '0.0.0.0', () => {
         logger.info(`🚀  Server listening on port ${PORT}`);
+
+        // Start keep-alive after server is up (prevents Render free tier sleep)
+        startKeepAlive();
     });
 
     // ── Graceful shutdown ─────────────────────────────────────
