@@ -179,9 +179,21 @@ class MonitorService : LifecycleService() {
             // Screen capture will be started on demand
         }
 
-        // Microphone and Camera tracks will be initialized on demand
+        // ── Camera track ──────────────────────────────
+        cameraCapture = createCameraCapturer()
+        if (cameraCapture != null) {
+            val cameraVideoSource = peerConnectionFactory!!.createVideoSource(false)
+            val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
+            localStream!!.addTrack(cameraTrack)
+
+            val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
+            cameraCapture!!.initialize(cameraSurfaceHelper, this.applicationContext, cameraVideoSource.capturerObserver)
+            // Camera capture will be started on demand
+        }
+
+        // Microphone audio track will be initialized on demand
         
-        Log.d(TAG, "Local stream built (screen track only)")
+        Log.d(TAG, "Local stream built (video tracks only)")
     }
 
     private fun createCameraCapturer(): VideoCapturer? {
@@ -273,23 +285,7 @@ class MonitorService : LifecycleService() {
                 val data = args.getOrNull(0) as? JSONObject ?: return@on
                 val enabled = data.optBoolean("enabled", true)
                 if (enabled) {
-                    if (cameraCapture == null) {
-                        cameraCapture = createCameraCapturer()
-                        if (cameraCapture != null) {
-                            val cameraVideoSource = peerConnectionFactory!!.createVideoSource(false)
-                            val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
-                            localStream!!.addTrack(cameraTrack)
-                            val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
-                            cameraCapture!!.initialize(cameraSurfaceHelper, this@MonitorService.applicationContext, cameraVideoSource.capturerObserver)
-                            peerConnection?.addTrack(cameraTrack, listOf("local_stream"))
-                            cameraCapture!!.startCapture(1280, 720, 30)
-                            
-                            // renegotiate offer since we added a track
-                            serviceScope.launch { renegotiateOffer(data.optString("viewerSocketId")) }
-                        }
-                    } else {
-                        cameraCapture?.startCapture(1280, 720, 30)
-                    }
+                    cameraCapture?.startCapture(1280, 720, 30)
                 } else {
                     cameraCapture?.stopCapture()
                 }
@@ -309,15 +305,14 @@ class MonitorService : LifecycleService() {
                         audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
                         val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
                         localStream!!.addTrack(audioTrack)
-                        peerConnection?.addTrack(audioTrack, listOf("local_stream"))
-                        
-                        // renegotiate offer since we added a track
-                        serviceScope.launch { renegotiateOffer(data.optString("viewerSocketId")) }
+                        peerConnection!!.addTrack(audioTrack, listOf("local_stream"))
                     } else {
                         localStream?.audioTracks?.forEach { it.setEnabled(true) }
                     }
                 } else {
                     localStream?.audioTracks?.forEach { it.setEnabled(false) }
+                    audioSource?.dispose()
+                    audioSource = null
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to toggle mic: ${e.message}")
@@ -410,7 +405,16 @@ class MonitorService : LifecycleService() {
                 30
             )
         }
-        // Add local tracks (only those already initialized)
+        if (cameraCapture != null) {
+            cameraCapture!!.startCapture(1280, 720, 30)
+        }
+
+        // Initialize audio source on demand
+        if (audioSource == null) {
+            audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
+            val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
+            localStream!!.addTrack(audioTrack)
+        }
 
         // Add local tracks
         localStream?.videoTracks?.forEach { track ->
@@ -430,30 +434,6 @@ class MonitorService : LifecycleService() {
             override fun onCreateSuccess(sdp: SessionDescription?) {
                 if (sdp == null) return
                 peerConnection!!.setLocalDescription(SimpleSdpObserver(), sdp)
-                val payload = JSONObject().apply {
-                    put("sdp", JSONObject().apply {
-                        put("type", sdp.type.canonicalForm())
-                        put("sdp",  sdp.description)
-                    })
-                    put("viewerSocketId", viewerSocketId)
-                    put("deviceToken",    session.deviceToken)
-                }
-                socket?.emit("webrtc:offer", payload)
-            }
-        }, constraints)
-    }
-
-    private suspend fun renegotiateOffer(viewerSocketId: String) = withContext(Dispatchers.IO) {
-        val pc = peerConnection ?: return@withContext
-        val constraints = MediaConstraints().apply {
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"))
-            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
-        }
-
-        pc.createOffer(object : SimpleSdpObserver() {
-            override fun onCreateSuccess(sdp: SessionDescription?) {
-                if (sdp == null) return
-                pc.setLocalDescription(SimpleSdpObserver(), sdp)
                 val payload = JSONObject().apply {
                     put("sdp", JSONObject().apply {
                         put("type", sdp.type.canonicalForm())
@@ -487,7 +467,7 @@ class MonitorService : LifecycleService() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Status push error", e)
                 }
-                delay(60_000L) // Push status every 60 seconds
+                delay(60_000L) // Push status every 60 seconds to save battery
             }
         }
     }
