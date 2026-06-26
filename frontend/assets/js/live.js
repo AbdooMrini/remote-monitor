@@ -145,6 +145,8 @@ async function ensurePeerConnection() {
             screenVideo.style.display = '';
             screenPlaceholder.style.display = 'none';
             liveBadge.style.display = '';
+            // Play is required for some browsers when autoplay is restricted
+            screenVideo.play().catch(e => console.error("Video play failed", e));
         }
 
         // Bind audio
