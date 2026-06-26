@@ -1,11 +1,10 @@
 // ============================================================
-// controllers/authController.js — Login, logout, refresh
+// controllers/authController.js — Login, logout, refresh (PostgreSQL)
 // ============================================================
 'use strict';
 
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const { query, transaction } = require('../config/database');
 const { hashToken }          = require('../middlewares/auth');
@@ -13,11 +12,8 @@ const logger                 = require('../config/logger');
 
 // ── Validators ────────────────────────────────────────────────
 const loginValidators = [
-    body('email')
-        .isEmail().withMessage('Valid email required.')
-        .normalizeEmail(),
-    body('password')
-        .isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
+    body('email').isEmail().withMessage('Valid email required.').normalizeEmail(),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
 ];
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -47,12 +43,15 @@ async function login(req, res) {
     const { email, password } = req.body;
 
     try {
-        const [rows] = await query('SELECT * FROM users WHERE email = ? AND is_active = 1', [email]);
-        if (rows.length === 0) {
+        const result = await query(
+            'SELECT * FROM users WHERE email = $1 AND is_active = TRUE',
+            [email]
+        );
+        if (result.rows.length === 0) {
             return res.status(401).json({ success: false, message: 'Invalid credentials.' });
         }
 
-        const user = rows[0];
+        const user  = result.rows[0];
         const valid = await bcrypt.compare(password, user.password_hash);
         if (!valid) {
             logger.warn('Failed login attempt', { email, ip: req.ip });
@@ -62,15 +61,14 @@ async function login(req, res) {
         const accessToken  = signAccessToken(user);
         const refreshToken = signRefreshToken(user.id);
 
-        // Persist session (store hash, not raw token)
-        await transaction(async (conn) => {
-            await conn.execute(
+        await transaction(async (client) => {
+            await client.query(
                 `INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, expires_at)
-                 VALUES (?, ?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR))`,
+                 VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours')`,
                 [user.id, hashToken(accessToken), req.ip, req.headers['user-agent'] || '']
             );
-            await conn.execute(
-                'UPDATE users SET last_login = UTC_TIMESTAMP() WHERE id = ?',
+            await client.query(
+                'UPDATE users SET last_login = NOW() WHERE id = $1',
                 [user.id]
             );
         });
@@ -100,7 +98,7 @@ async function login(req, res) {
 // ── POST /auth/logout ─────────────────────────────────────────
 async function logout(req, res) {
     try {
-        await query('DELETE FROM sessions WHERE token_hash = ?', [hashToken(req.token)]);
+        await query('DELETE FROM sessions WHERE token_hash = $1', [hashToken(req.token)]);
         logger.info('User logged out', { userId: req.user.id });
         return res.json({ success: true, message: 'Logged out.' });
     } catch (err) {
@@ -120,21 +118,21 @@ async function refresh(req, res) {
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
         if (decoded.type !== 'refresh') throw new Error('Not a refresh token.');
 
-        const [rows] = await query(
-            'SELECT * FROM users WHERE id = ? AND is_active = 1',
+        const result = await query(
+            'SELECT * FROM users WHERE id = $1 AND is_active = TRUE',
             [decoded.id]
         );
-        if (rows.length === 0) {
+        if (result.rows.length === 0) {
             return res.status(401).json({ success: false, message: 'User not found.' });
         }
 
-        const user         = rows[0];
-        const newAccess    = signAccessToken(user);
-        const newRefresh   = signRefreshToken(user.id);
+        const user       = result.rows[0];
+        const newAccess  = signAccessToken(user);
+        const newRefresh = signRefreshToken(user.id);
 
         await query(
             `INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, expires_at)
-             VALUES (?, ?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR))`,
+             VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours')`,
             [user.id, hashToken(newAccess), req.ip, req.headers['user-agent'] || '']
         );
 
@@ -155,18 +153,18 @@ async function changePassword(req, res) {
     }
 
     try {
-        const [rows] = await query('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
-        const valid  = await bcrypt.compare(currentPassword, rows[0].password_hash);
+        const result = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+        const valid  = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
         if (!valid) {
             return res.status(401).json({ success: false, message: 'Current password incorrect.' });
         }
 
         const hash = await bcrypt.hash(newPassword, 12);
-        await query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.user.id]);
+        await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
 
-        // Invalidate all existing sessions except current
+        // Invalidate all other sessions
         await query(
-            'DELETE FROM sessions WHERE user_id = ? AND token_hash != ?',
+            'DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2',
             [req.user.id, hashToken(req.token)]
         );
 

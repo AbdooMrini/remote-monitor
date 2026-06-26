@@ -1,131 +1,126 @@
--- ============================================
--- Remote Monitor — MySQL Database Schema
--- ============================================
+-- ============================================================
+-- Remote Monitor — PostgreSQL Schema
+-- Compatible with Render's free PostgreSQL database
+-- ============================================================
 
-CREATE DATABASE IF NOT EXISTS remote_monitor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE remote_monitor;
-
--- ============================================
--- USERS TABLE
--- ============================================
+-- ── USERS TABLE ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
-    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id            SERIAL PRIMARY KEY,
     email         VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name     VARCHAR(100),
-    role          ENUM('admin','viewer') DEFAULT 'admin',
-    is_active     TINYINT(1) DEFAULT 1,
-    last_login    DATETIME,
-    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_email (email),
-    INDEX idx_active (is_active)
-) ENGINE=InnoDB;
+    role          VARCHAR(10)  NOT NULL DEFAULT 'admin' CHECK (role IN ('admin','viewer')),
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    last_login    TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_users_email  ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active);
 
--- ============================================
--- DEVICES TABLE
--- ============================================
+-- ── DEVICES TABLE ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS devices (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id         INT UNSIGNED NOT NULL,
-    device_token    VARCHAR(64) NOT NULL UNIQUE,
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device_token    VARCHAR(64)  NOT NULL UNIQUE,
     device_name     VARCHAR(100),
     device_model    VARCHAR(100),
     android_version VARCHAR(20),
     app_version     VARCHAR(20),
     fcm_token       VARCHAR(255),
-    is_online       TINYINT(1) DEFAULT 0,
-    last_seen       DATETIME,
-    registered_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_token  (device_token),
-    INDEX idx_user   (user_id),
-    INDEX idx_online (is_online)
-) ENGINE=InnoDB;
+    is_online       BOOLEAN      NOT NULL DEFAULT FALSE,
+    last_seen       TIMESTAMPTZ,
+    registered_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_devices_token  ON devices(device_token);
+CREATE INDEX IF NOT EXISTS idx_devices_user   ON devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_devices_online ON devices(is_online);
 
--- ============================================
--- DEVICE STATUS TABLE
--- ============================================
+-- ── DEVICE STATUS TABLE ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS device_status (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    device_id       INT UNSIGNED NOT NULL,
-    battery_level   TINYINT UNSIGNED,
-    is_charging     TINYINT(1) DEFAULT 0,
-    network_type    ENUM('wifi','mobile','none','unknown') DEFAULT 'unknown',
+    id              SERIAL PRIMARY KEY,
+    device_id       INTEGER     NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    battery_level   SMALLINT,
+    is_charging     BOOLEAN     NOT NULL DEFAULT FALSE,
+    network_type    VARCHAR(10) NOT NULL DEFAULT 'unknown' CHECK (network_type IN ('wifi','mobile','none','unknown')),
     wifi_ssid       VARCHAR(100),
-    signal_strength TINYINT,
+    signal_strength SMALLINT,
     public_ip       VARCHAR(45),
-    is_screen_on    TINYINT(1) DEFAULT 0,
-    recorded_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
-    INDEX idx_device   (device_id),
-    INDEX idx_recorded (recorded_at)
-) ENGINE=InnoDB;
+    is_screen_on    BOOLEAN     NOT NULL DEFAULT FALSE,
+    recorded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_status_device   ON device_status(device_id);
+CREATE INDEX IF NOT EXISTS idx_status_recorded ON device_status(recorded_at);
 
--- ============================================
--- LOCATIONS TABLE
--- ============================================
+-- ── LOCATIONS TABLE ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS locations (
-    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    device_id   INT UNSIGNED NOT NULL,
-    latitude    DECIMAL(10, 8) NOT NULL,
-    longitude   DECIMAL(11, 8) NOT NULL,
+    id          SERIAL PRIMARY KEY,
+    device_id   INTEGER      NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    latitude    DECIMAL(10,8) NOT NULL,
+    longitude   DECIMAL(11,8) NOT NULL,
     accuracy    FLOAT,
     altitude    FLOAT,
     speed       FLOAT,
     provider    VARCHAR(30),
-    recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
-    INDEX idx_device   (device_id),
-    INDEX idx_recorded (recorded_at)
-) ENGINE=InnoDB;
+    recorded_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_locations_device   ON locations(device_id);
+CREATE INDEX IF NOT EXISTS idx_locations_recorded ON locations(recorded_at);
 
--- ============================================
--- SESSIONS TABLE
--- ============================================
+-- ── SESSIONS TABLE ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
-    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id     INT UNSIGNED NOT NULL,
+    id          SERIAL PRIMARY KEY,
+    user_id     INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash  VARCHAR(255) NOT NULL UNIQUE,
     ip_address  VARCHAR(45),
     user_agent  TEXT,
-    expires_at  DATETIME NOT NULL,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_token  (token_hash),
-    INDEX idx_user   (user_id),
-    INDEX idx_expiry (expires_at)
-) ENGINE=InnoDB;
+    expires_at  TIMESTAMPTZ  NOT NULL,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_token  ON sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
 
--- ============================================
--- LOGS TABLE
--- ============================================
+-- ── LOGS TABLE ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS logs (
-    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    level       ENUM('info','warn','error','debug') DEFAULT 'info',
+    id          SERIAL PRIMARY KEY,
+    level       VARCHAR(5)   NOT NULL DEFAULT 'info' CHECK (level IN ('info','warn','error','debug')),
     source      VARCHAR(50),
-    device_id   INT UNSIGNED,
-    user_id     INT UNSIGNED,
+    device_id   INTEGER      REFERENCES devices(id) ON DELETE SET NULL,
+    user_id     INTEGER      REFERENCES users(id)   ON DELETE SET NULL,
     message     TEXT,
-    metadata    JSON,
+    metadata    JSONB,
     ip_address  VARCHAR(45),
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL,
-    FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE SET NULL,
-    INDEX idx_level   (level),
-    INDEX idx_device  (device_id),
-    INDEX idx_created (created_at)
-) ENGINE=InnoDB;
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_logs_level   ON logs(level);
+CREATE INDEX IF NOT EXISTS idx_logs_device  ON logs(device_id);
+CREATE INDEX IF NOT EXISTS idx_logs_created ON logs(created_at);
 
--- ============================================
--- SEED — Default admin (password: Admin@123)
--- Change this immediately after first login!
--- ============================================
+-- ── Auto-update updated_at trigger ───────────────────────────
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE OR REPLACE TRIGGER trg_devices_updated_at
+    BEFORE UPDATE ON devices
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ── SEED — Default admin (password: Admin@123) ───────────────
+-- Change this password immediately after first login!
 INSERT INTO users (email, password_hash, full_name, role)
 VALUES (
     'admin@monitor.local',
     '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCgZAQCN8r4CXlwMnXxKVmS',
     'Admin',
     'admin'
-) ON DUPLICATE KEY UPDATE id = id;
+) ON CONFLICT (email) DO NOTHING;

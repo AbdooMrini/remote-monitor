@@ -1,9 +1,10 @@
 // ============================================================
-// middlewares/auth.js — JWT authentication middleware
+// middlewares/auth.js — JWT authentication middleware (PostgreSQL)
 // ============================================================
 'use strict';
 
 const jwt    = require('jsonwebtoken');
+const crypto = require('crypto');
 const logger = require('../config/logger');
 const { query } = require('../config/database');
 
@@ -22,12 +23,12 @@ async function authenticateToken(req, res, next) {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Check token isn't revoked (not in sessions table anymore)
-        const [rows] = await query(
-            'SELECT id FROM sessions WHERE token_hash = ? AND expires_at > UTC_TIMESTAMP()',
+        // Check token isn't revoked
+        const result = await query(
+            'SELECT id FROM sessions WHERE token_hash = $1 AND expires_at > NOW()',
             [hashToken(token)]
         );
-        if (rows.length === 0) {
+        if (result.rows.length === 0) {
             return res.status(401).json({ success: false, message: 'Token has been revoked or expired.' });
         }
 
@@ -44,7 +45,7 @@ async function authenticateToken(req, res, next) {
 }
 
 /**
- * Simple admin role guard — must follow authenticateToken.
+ * Admin role guard — must follow authenticateToken.
  */
 function requireAdmin(req, res, next) {
     if (req.user?.role !== 'admin') {
@@ -57,19 +58,18 @@ function requireAdmin(req, res, next) {
  * Device-token authenticator for Android app socket connections.
  */
 async function authenticateDevice(deviceToken) {
-    const [rows] = await query(
-        'SELECT d.*, u.is_active FROM devices d JOIN users u ON d.user_id = u.id WHERE d.device_token = ?',
+    const result = await query(
+        'SELECT d.*, u.is_active FROM devices d JOIN users u ON d.user_id = u.id WHERE d.device_token = $1',
         [deviceToken]
     );
-    if (rows.length === 0 || !rows[0].is_active) return null;
-    return rows[0];
+    if (result.rows.length === 0 || !result.rows[0].is_active) return null;
+    return result.rows[0];
 }
 
 /**
- * Deterministic hash for token storage (sha256 in hex via Node crypto).
+ * SHA-256 hash of token for DB storage.
  */
 function hashToken(token) {
-    const crypto = require('crypto');
     return crypto.createHash('sha256').update(token).digest('hex');
 }
 

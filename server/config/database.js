@@ -1,48 +1,63 @@
 // ============================================================
-// config/database.js — MySQL connection pool with mysql2
+// config/database.js — PostgreSQL connection pool with pg
+// Compatible with Render's free PostgreSQL service
 // ============================================================
 'use strict';
 
-const mysql = require('mysql2/promise');
-const logger = require('./logger');
+const { Pool } = require('pg');
+const logger   = require('./logger');
 
 let pool;
 
 /**
- * Initialize the MySQL connection pool.
+ * Initialize the PostgreSQL connection pool.
  * Called once at server startup.
+ * Render provides DATABASE_URL automatically when you attach a PostgreSQL DB.
  */
 async function initPool() {
-    pool = mysql.createPool({
-        host:               process.env.DB_HOST     || 'localhost',
-        port:               parseInt(process.env.DB_PORT) || 3306,
-        user:               process.env.DB_USER,
-        password:           process.env.DB_PASSWORD,
-        database:           process.env.DB_NAME,
-        waitForConnections: true,
-        connectionLimit:    parseInt(process.env.DB_POOL_SIZE) || 10,
-        queueLimit:         0,
-        timezone:           '+00:00',
-        // Prevent SQL injection via prepared statements by default
-        namedPlaceholders:  true,
+    const connectionConfig = process.env.DATABASE_URL
+        ? {
+            // Render / Heroku style — single connection string
+            connectionString: process.env.DATABASE_URL,
+            ssl: { rejectUnauthorized: false }, // Required on Render
+          }
+        : {
+            // Manual config (local dev or external DB)
+            host:     process.env.DB_HOST     || 'localhost',
+            port:     parseInt(process.env.DB_PORT) || 5432,
+            user:     process.env.DB_USER,
+            password: process.env.DB_PASSWORD,
+            database: process.env.DB_NAME,
+            ssl:      process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+          };
+
+    pool = new Pool({
+        ...connectionConfig,
+        max:              parseInt(process.env.DB_POOL_SIZE) || 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
     });
 
-    // Verify the pool is healthy on startup
+    // Verify connection on startup
     try {
-        const conn = await pool.getConnection();
-        logger.info('✅  MySQL pool initialised');
-        conn.release();
+        const client = await pool.connect();
+        logger.info('✅  PostgreSQL pool initialised');
+        client.release();
     } catch (err) {
-        logger.error('❌  MySQL pool failed to initialise', { error: err.message });
+        logger.error('❌  PostgreSQL pool failed to initialise', { error: err.message });
         process.exit(1);
     }
+
+    // Log unexpected pool errors (don't crash server)
+    pool.on('error', (err) => {
+        logger.error('PostgreSQL pool error', { error: err.message });
+    });
 
     return pool;
 }
 
 /**
  * Returns the shared pool instance.
- * Throws if pool was never initialised.
  */
 function getPool() {
     if (!pool) throw new Error('Database pool has not been initialised yet.');
@@ -50,31 +65,33 @@ function getPool() {
 }
 
 /**
- * Convenience wrapper — execute a query with automatic connection management.
+ * Execute a parameterised query.
+ * PostgreSQL uses $1, $2, ... placeholders.
+ *
  * @param {string} sql
- * @param {Array|Object} params
- * @returns {Promise<[RowDataPacket[], FieldPacket[]]>}
+ * @param {Array}  params
+ * @returns {Promise<QueryResult>}
  */
 async function query(sql, params = []) {
-    return getPool().execute(sql, params);
+    return getPool().query(sql, params);
 }
 
 /**
  * Run multiple queries inside a single transaction.
- * @param {Function} callback  async fn that receives a connection
+ * @param {Function} callback  async fn that receives a pg client
  */
 async function transaction(callback) {
-    const conn = await getPool().getConnection();
-    await conn.beginTransaction();
+    const client = await getPool().connect();
     try {
-        const result = await callback(conn);
-        await conn.commit();
+        await client.query('BEGIN');
+        const result = await callback(client);
+        await client.query('COMMIT');
         return result;
     } catch (err) {
-        await conn.rollback();
+        await client.query('ROLLBACK');
         throw err;
     } finally {
-        conn.release();
+        client.release();
     }
 }
 

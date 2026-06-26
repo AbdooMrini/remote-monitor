@@ -46,10 +46,10 @@ function attachSignaling(io) {
         deviceSockets.set(device.device_token, socket.id);
 
         // Mark device online in DB
-        await query('UPDATE devices SET is_online = 1, last_seen = UTC_TIMESTAMP() WHERE id = ?', [device.id]);
+        await query('UPDATE devices SET is_online = TRUE, last_seen = NOW() WHERE id = $1', [device.id]);
         await query(
             `INSERT INTO logs (level, source, device_id, message)
-             VALUES ('info', 'signaling', ?, 'Device came online')`,
+             VALUES ('info', 'signaling', $1, 'Device came online')`,
             [device.id]
         );
 
@@ -70,11 +70,11 @@ function attachSignaling(io) {
                 await query(
                     `INSERT INTO device_status
                          (device_id, battery_level, is_charging, network_type, wifi_ssid, signal_strength, public_ip, is_screen_on)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
                     [device.id, data.batteryLevel, data.isCharging, data.networkType,
                      data.wifiSsid, data.signalStrength, data.publicIp, data.isScreenOn]
                 );
-                await query('UPDATE devices SET last_seen = UTC_TIMESTAMP() WHERE id = ?', [device.id]);
+                await query('UPDATE devices SET last_seen = NOW() WHERE id = $1', [device.id]);
                 notifyViewers(device.device_token, 'status:update', { deviceToken: device.device_token, ...data });
             } catch (e) {
                 logger.error('status:update DB error', { error: e.message });
@@ -86,7 +86,7 @@ function attachSignaling(io) {
             try {
                 await query(
                     `INSERT INTO locations (device_id, latitude, longitude, accuracy, altitude, speed, provider)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
                     [device.id, data.latitude, data.longitude, data.accuracy, data.altitude, data.speed, data.provider || 'gps']
                 );
                 notifyViewers(device.device_token, 'location:update', { deviceToken: device.device_token, ...data });
@@ -99,10 +99,10 @@ function attachSignaling(io) {
         socket.on('disconnect', async (reason) => {
             logger.info('Device disconnected', { deviceId: device.id, reason });
             deviceSockets.delete(device.device_token);
-            await query('UPDATE devices SET is_online = 0 WHERE id = ?', [device.id]);
+            await query('UPDATE devices SET is_online = FALSE WHERE id = $1', [device.id]);
             await query(
                 `INSERT INTO logs (level, source, device_id, message, metadata)
-                 VALUES ('info', 'signaling', ?, 'Device went offline', ?)`,
+                 VALUES ('info', 'signaling', $1, 'Device went offline', $2)`,
                 [device.id, JSON.stringify({ reason })]
             );
             notifyViewers(device.device_token, 'device:offline', { deviceToken: device.device_token });
