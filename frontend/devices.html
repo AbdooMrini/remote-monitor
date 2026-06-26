@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devices - Remote Monitor</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- Boxicons for icons -->
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo-details">
+            <i class='bx bx-radar'></i>
+            <span class="logo_name">RM Admin</span>
+        </div>
+        <ul class="nav-links">
+            <li>
+                <a href="dashboard.html">
+                    <i class='bx bx-grid-alt'></i>
+                    <span class="links_name">Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="live.html">
+                    <i class='bx bx-video'></i>
+                    <span class="links_name">Live View</span>
+                </a>
+            </li>
+            <li>
+                <a href="location.html">
+                    <i class='bx bx-map'></i>
+                    <span class="links_name">Location Tracker</span>
+                </a>
+            </li>
+            <li>
+                <a href="devices.html" class="active">
+                    <i class='bx bx-devices'></i>
+                    <span class="links_name">Devices</span>
+                </a>
+            </li>
+            <li>
+                <a href="settings.html">
+                    <i class='bx bx-cog'></i>
+                    <span class="links_name">Settings</span>
+                </a>
+            </li>
+            <li class="log_out">
+                <a href="#" id="btnLogout">
+                    <i class='bx bx-log-out'></i>
+                    <span class="links_name">Log out</span>
+                </a>
+            </li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <section class="home-section">
+        <nav>
+            <div class="sidebar-button">
+                <i class='bx bx-menu sidebarBtn'></i>
+                <span class="dashboard">Device Management</span>
+            </div>
+            <div class="profile-details">
+                <span class="admin_name" id="navUserName">Admin</span>
+            </div>
+        </nav>
+
+        <div class="home-content">
+            <div class="overview-boxes">
+                <div class="box">
+                    <div class="right-side">
+                        <div class="box-topic">Total Devices</div>
+                        <div class="number" id="statTotalDevices">0</div>
+                    </div>
+                    <i class='bx bx-devices cart'></i>
+                </div>
+                <div class="box">
+                    <div class="right-side">
+                        <div class="box-topic">Online Now</div>
+                        <div class="number" id="statOnlineDevices">0</div>
+                    </div>
+                    <i class='bx bx-wifi cart two'></i>
+                </div>
+            </div>
+
+            <div class="sales-boxes">
+                <div class="recent-sales box">
+                    <div class="title">Registered Devices</div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Device Name</th>
+                                    <th>Model</th>
+                                    <th>Android Ver.</th>
+                                    <th>App Ver.</th>
+                                    <th>Last Seen</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devicesTableBody">
+                                <!-- Devices will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="assets/js/app.js"></script>
+    <script src="assets/js/devices.js"></script>
+</body>
+</html>
