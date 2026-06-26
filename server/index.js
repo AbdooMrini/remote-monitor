@@ -39,13 +39,10 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(sanitiseBody);
 app.use(limiter);
 
-// HTTP request logging (combined format → log file in production)
+// HTTP request logging
 if (process.env.NODE_ENV === 'production') {
-    const accessStream = fs.createWriteStream(
-        path.join(__dirname, 'logs', 'access.log'),
-        { flags: 'a' }
-    );
-    app.use(morgan('combined', { stream: accessStream }));
+    // On Render/PaaS, logs should go to stdout instead of local files
+    app.use(morgan('combined'));
 } else {
     app.use(morgan('dev'));
 }
