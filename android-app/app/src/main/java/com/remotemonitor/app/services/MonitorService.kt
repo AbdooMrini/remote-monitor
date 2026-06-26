@@ -191,12 +191,9 @@ class MonitorService : LifecycleService() {
             // Camera capture will be started on demand
         }
 
-        // ── Microphone audio track ────────────────────────────
-        audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
-        val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
-        localStream!!.addTrack(audioTrack)
-
-        Log.d(TAG, "Local stream built: ${localStream!!.videoTracks.size} video, ${localStream!!.audioTracks.size} audio tracks")
+        // Microphone audio track will be initialized on demand
+        
+        Log.d(TAG, "Local stream built (video tracks only)")
     }
 
     private fun createCameraCapturer(): VideoCapturer? {
@@ -341,6 +338,8 @@ class MonitorService : LifecycleService() {
                     try {
                         screenCapture?.stopCapture()
                         cameraCapture?.stopCapture()
+                        audioSource?.dispose()
+                        audioSource = null
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to stop captures: ${e.message}")
                     }
@@ -368,6 +367,13 @@ class MonitorService : LifecycleService() {
         }
         if (cameraCapture != null) {
             cameraCapture!!.startCapture(1280, 720, 30)
+        }
+
+        // Initialize audio source on demand
+        if (audioSource == null) {
+            audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
+            val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
+            localStream!!.addTrack(audioTrack)
         }
 
         // Add local tracks
