@@ -70,6 +70,7 @@ class MonitorService : LifecycleService() {
     private var videoSource: VideoSource?            = null
     private var audioSource: AudioSource?            = null
     private var mediaProjection: MediaProjection?    = null
+    private var projectionData: Intent?              = null
     private val webRtcExecutor = Executors.newSingleThreadExecutor()
 
     // ── Helpers ───────────────────────────────────────────────
@@ -85,8 +86,20 @@ class MonitorService : LifecycleService() {
             ACTION_START -> {
                 val resultCode = intent.getIntExtra(EXTRA_PROJECTION_RESULT, -1)
                 val projData   = intent.getParcelableExtra<Intent>(EXTRA_PROJECTION_DATA)
+                projectionData = projData
 
-                startForeground(NOTIFICATION_ID, buildNotification())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(
+                        NOTIFICATION_ID, 
+                        buildNotification(), 
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                    )
+                } else {
+                    startForeground(NOTIFICATION_ID, buildNotification())
+                }
 
                 if (projData != null && resultCode == Activity.RESULT_OK) {
                     val mpm = getSystemService(MediaProjectionManager::class.java)
@@ -109,7 +122,7 @@ class MonitorService : LifecycleService() {
     private fun initWebRtc() {
         eglBase = EglBase.create()
         PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(this)
+            PeerConnectionFactory.InitializationOptions.builder(this.applicationContext)
                 .setEnableInternalTracer(false)
                 .createInitializationOptions()
         )
@@ -126,20 +139,21 @@ class MonitorService : LifecycleService() {
         localStream = peerConnectionFactory!!.createLocalMediaStream("local_stream")
 
         // ── Screen capture track ──────────────────────────────
-        if (mediaProjection != null) {
+        if (projectionData != null) {
             screenCapture = ScreenCapturerAndroid(
-                mediaProjection!!.createVirtualDisplay(
-                    "screen",
-                    resources.displayMetrics.widthPixels,
-                    resources.displayMetrics.heightPixels,
-                    resources.displayMetrics.densityDpi,
-                    0, null, null
-                ),
-                object : MediaProjection.Callback() {}
+                projectionData,
+                object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        Log.d(TAG, "MediaProjection stopped")
+                    }
+                }
             )
             videoSource = peerConnectionFactory!!.createVideoSource(false)
             val videoTrack = peerConnectionFactory!!.createVideoTrack("screen_track", videoSource!!)
             localStream!!.addTrack(videoTrack)
+
+            val surfaceTextureHelper = org.webrtc.SurfaceTextureHelper.create("CaptureThread", eglBase!!.eglBaseContext)
+            screenCapture!!.initialize(surfaceTextureHelper, this.applicationContext, videoSource!!.capturerObserver)
 
             screenCapture!!.startCapture(
                 resources.displayMetrics.widthPixels,
@@ -192,6 +206,8 @@ class MonitorService : LifecycleService() {
         s.on(Socket.EVENT_CONNECT) {
             Log.i(TAG, "Socket connected")
             reconnectJob?.cancel()
+            startStatusLoop()
+            startLocationLoop()
         }
 
         s.on(Socket.EVENT_DISCONNECT) { args ->
@@ -290,7 +306,8 @@ class MonitorService : LifecycleService() {
         }
 
         peerConnection!!.createOffer(object : SimpleSdpObserver() {
-            override fun onCreateSuccess(sdp: SessionDescription) {
+            override fun onCreateSuccess(sdp: SessionDescription?) {
+                if (sdp == null) return
                 peerConnection!!.setLocalDescription(SimpleSdpObserver(), sdp)
                 val payload = JSONObject().apply {
                     put("sdp", JSONObject().apply {
