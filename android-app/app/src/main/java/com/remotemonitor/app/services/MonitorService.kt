@@ -467,14 +467,14 @@ class MonitorService : LifecycleService() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Status push error", e)
                 }
-                delay(10_000L)
+                delay(60_000L) // Push status every 60 seconds to save battery
             }
         }
     }
 
     @SuppressLint("MissingPermission")
     private fun startLocationLoop() {
-        locationHelper.startUpdates(intervalMs = 10_000L) { lat, lng, acc, alt, speed, provider ->
+        locationHelper.startUpdates(intervalMs = 60_000L) { lat, lng, acc, alt, speed, provider ->
             socket?.emit("location:update", JSONObject().apply {
                 put("latitude",  lat)
                 put("longitude", lng)
