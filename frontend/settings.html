@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — Remote Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <a href="dashboard.html" class="sidebar-logo">
+      <div class="sidebar-logo-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M8 12l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <span class="sidebar-logo-text">RemoteMonitor</span>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item" data-page="dashboard.html"><span class="nav-item-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="3" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="13" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="13" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.8"/></svg></span>Dashboard</a>
+      <a href="devices.html" class="nav-item" data-page="devices.html"><span class="nav-item-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="7" y="2" width="10" height="20" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg></span>Devices</a>
+      <a href="live.html" class="nav-item" data-page="live.html"><span class="nav-item-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.277A1 1 0 0121 8.645v6.71a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="currentColor" stroke-width="1.8"/></svg></span>Live View</a>
+      <a href="location.html" class="nav-item" data-page="location.html"><span class="nav-item-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg></span>Location</a>
+      <a href="settings.html" class="nav-item" data-page="settings.html"><span class="nav-item-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8"/></svg></span>Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--clr-primary-glow);display:flex;align-items:center;justify-content:center;color:var(--clr-primary-light);font-weight:700" id="userAvatar">A</div>
+        <div style="flex:1;min-width:0"><div style="font-size:.8125rem;font-weight:600;color:var(--clr-text)" id="sidebarUserName">Admin</div><div style="font-size:.7rem;color:var(--clr-text-muted)" id="sidebarUserEmail"></div></div>
+        <button id="logoutBtn" class="btn btn-icon" style="color:var(--clr-text-muted);padding:6px"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">Settings</div>
+    </header>
+
+    <main class="page-body">
+      <div class="settings-grid">
+
+        <!-- Change password -->
+        <div class="settings-section">
+          <div class="settings-section-title">Change Password</div>
+          <form id="changePasswordForm" class="auth-form">
+            <div class="form-group">
+              <label class="form-label">Current Password</label>
+              <div class="input-wrapper"><input type="password" id="currentPw" class="form-input" placeholder="Current password" /></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">New Password</label>
+              <div class="input-wrapper"><input type="password" id="newPw" class="form-input" placeholder="Min. 8 characters" /></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm New Password</label>
+              <div class="input-wrapper"><input type="password" id="confirmPw" class="form-input" placeholder="Repeat new password" /></div>
+            </div>
+            <div id="pwAlert" class="alert" style="display:none"></div>
+            <button type="submit" class="btn btn-primary">Update Password</button>
+          </form>
+        </div>
+
+        <!-- Server URL -->
+        <div class="settings-section">
+          <div class="settings-section-title">Server Configuration</div>
+          <div class="auth-form">
+            <div class="form-group">
+              <label class="form-label">Server URL</label>
+              <div class="input-wrapper"><input type="url" id="serverUrlInput" class="form-input" placeholder="https://your-server.com" /></div>
+              <span style="font-size:.75rem;color:var(--clr-text-muted)">Used for all API and WebSocket connections.</span>
+            </div>
+            <button class="btn btn-primary" id="saveServerBtn">Save URL</button>
+          </div>
+        </div>
+
+        <!-- Account info -->
+        <div class="settings-section">
+          <div class="settings-section-title">Account Information</div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="device-stat"><div class="device-stat-label">Email</div><div class="device-stat-value" id="settingsEmail">—</div></div>
+            <div class="device-stat"><div class="device-stat-label">Role</div><div class="device-stat-value" id="settingsRole">—</div></div>
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="settings-section" style="border-color:rgba(248,81,73,.3)">
+          <div class="settings-section-title" style="color:var(--clr-danger)">Danger Zone</div>
+          <p style="font-size:.875rem;color:var(--clr-text-muted);margin-bottom:16px">Log out from all active sessions.</p>
+          <button class="btn btn-danger btn-sm" id="logoutAllBtn">Log Out Everywhere</button>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="assets/js/app.js"></script>
+<script src="assets/js/settings.js"></script>
+</body>
+</html>

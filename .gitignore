@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment
+.env
+server/.env
+*.env.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Build
+dist/
+build/
+.gradle/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# Android
+android-app/.gradle/
+android-app/app/build/
+android-app/local.properties
+android-app/.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
+.vscode/settings.json

@@ -1,0 +1,48 @@
+package com.remotemonitor.app.services
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.os.Looper
+import com.google.android.gms.location.*
+
+/**
+ * Wraps FusedLocationProviderClient with a clean callback interface.
+ */
+class LocationHelper(private val context: Context) {
+
+    private val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+    private var callback: LocationCallback? = null
+
+    @SuppressLint("MissingPermission")
+    fun startUpdates(
+        intervalMs: Long = 10_000L,
+        onLocation: (lat: Double, lng: Double, acc: Float, alt: Double, speed: Float, provider: String) -> Unit,
+    ) {
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
+            .setWaitForAccurateLocation(false)
+            .setMinUpdateIntervalMillis(intervalMs / 2)
+            .build()
+
+        callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { loc ->
+                    onLocation(
+                        loc.latitude,
+                        loc.longitude,
+                        loc.accuracy,
+                        loc.altitude,
+                        loc.speed,
+                        loc.provider ?: "fused"
+                    )
+                }
+            }
+        }
+
+        fusedClient.requestLocationUpdates(request, callback!!, Looper.getMainLooper())
+    }
+
+    fun stopUpdates() {
+        callback?.let { fusedClient.removeLocationUpdates(it) }
+        callback = null
+    }
+}
