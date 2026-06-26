@@ -18,7 +18,9 @@ function requireAuth() {
 
 // ── Get server URL ────────────────────────────────────────
 function serverUrl() {
-    return (localStorage.getItem(SERVER_KEY) || '').trim().replace(/\/$/, '');
+    // Hardcoded production URL for Netlify deployment
+    const PROD_URL = 'https://remote-monitor-1p87.onrender.com';
+    return (localStorage.getItem(SERVER_KEY) || PROD_URL).trim().replace(/\/$/, '');
 }
 
 // ── Authenticated fetch with auto-refresh ─────────────────
