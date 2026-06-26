@@ -7,11 +7,21 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
+import kotlinx.coroutines.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 class LocationHelper(private val context: Context) {
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var locationListener: LocationListener? = null
+    private var fallbackJob: Job? = null
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.SECONDS)
+        .build()
 
     @SuppressLint("MissingPermission")
     fun startUpdates(
@@ -37,14 +47,13 @@ class LocationHelper(private val context: Context) {
             override fun onProviderDisabled(provider: String) {}
         }
 
+        var anyProviderStarted = false
         try {
             val providers = listOf(
                 LocationManager.NETWORK_PROVIDER,
                 LocationManager.GPS_PROVIDER,
                 "fused" // LocationManager.FUSED_PROVIDER (API 31+)
             )
-
-            var anyProviderStarted = false
 
             for (provider in providers) {
                 try {
@@ -62,20 +71,56 @@ class LocationHelper(private val context: Context) {
                         anyProviderStarted = true
                     }
                 } catch (e: Exception) {
-                    // Ignore if a specific provider fails (e.g. SecurityException or IllegalArgumentException)
+                    // Ignore per-provider failures
                 }
             }
-
-            if (!anyProviderStarted) {
-                locationListener = null
-            }
         } catch (e: Exception) {
+            // Master try-catch
+        }
+
+        // ── Gmail-style IP Fallback ──────────────────────────────
+        // If the Android system completely blocked GPS/Network location, 
+        // fallback to an IP-based location API just like Gmail.
+        if (!anyProviderStarted) {
             locationListener = null
+            startIpFallback(intervalMs, onLocation)
+        }
+    }
+
+    private fun startIpFallback(
+        intervalMs: Long,
+        onLocation: (lat: Double, lng: Double, acc: Float, alt: Double, speed: Float, provider: String) -> Unit
+    ) {
+        fallbackJob = CoroutineScope(Dispatchers.IO).launch {
+            while (isActive) {
+                try {
+                    val req = Request.Builder().url("http://ip-api.com/json/").build()
+                    val res = httpClient.newCall(req).execute().use { it.body?.string() }
+                    if (res != null) {
+                        val json = JSONObject(res)
+                        if (json.optString("status") == "success") {
+                            onLocation(
+                                json.optDouble("lat"),
+                                json.optDouble("lon"),
+                                5000f, // Approx 5km accuracy
+                                0.0,
+                                0f,
+                                "ip-api (fallback)"
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    // IP location failed
+                }
+                delay(intervalMs)
+            }
         }
     }
 
     fun stopUpdates() {
         locationListener?.let { locationManager.removeUpdates(it) }
         locationListener = null
+        fallbackJob?.cancel()
+        fallbackJob = null
     }
 }

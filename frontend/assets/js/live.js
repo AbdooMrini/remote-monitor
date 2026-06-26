@@ -192,6 +192,8 @@ startStreamBtn.addEventListener('click', () => {
 
 function startWatching() {
     socket.emit('watch:device', selectedDevice);
+    socket.emit('webrtc:toggle-camera', { deviceToken: selectedDevice, enabled: cameraEnabled });
+    socket.emit('webrtc:toggle-mic', { deviceToken: selectedDevice, enabled: !audioMuted });
     isStreaming = true;
     startStreamBtn.style.display = 'none';
     stopStreamBtn.style.display  = '';
