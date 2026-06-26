@@ -273,7 +273,23 @@ class MonitorService : LifecycleService() {
                 val data = args.getOrNull(0) as? JSONObject ?: return@on
                 val enabled = data.optBoolean("enabled", true)
                 if (enabled) {
-                    cameraCapture?.startCapture(1280, 720, 30)
+                    if (cameraCapture == null) {
+                        cameraCapture = createCameraCapturer()
+                        if (cameraCapture != null) {
+                            val cameraVideoSource = peerConnectionFactory!!.createVideoSource(false)
+                            val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
+                            localStream!!.addTrack(cameraTrack)
+                            val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
+                            cameraCapture!!.initialize(cameraSurfaceHelper, this@MonitorService.applicationContext, cameraVideoSource.capturerObserver)
+                            peerConnection?.addTrack(cameraTrack, listOf("local_stream"))
+                            cameraCapture!!.startCapture(1280, 720, 30)
+                            
+                            // renegotiate offer since we added a track
+                            serviceScope.launch { createOffer(data.optString("viewerSocketId")) }
+                        }
+                    } else {
+                        cameraCapture?.startCapture(1280, 720, 30)
+                    }
                 } else {
                     cameraCapture?.stopCapture()
                 }
@@ -393,27 +409,7 @@ class MonitorService : LifecycleService() {
                 30
             )
         }
-        // Initialize camera on demand
-        if (cameraCapture == null) {
-            cameraCapture = createCameraCapturer()
-            if (cameraCapture != null) {
-                val cameraVideoSource = peerConnectionFactory!!.createVideoSource(false)
-                val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
-                localStream!!.addTrack(cameraTrack)
-                val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
-                cameraCapture!!.initialize(cameraSurfaceHelper, this@MonitorService.applicationContext, cameraVideoSource.capturerObserver)
-                cameraCapture!!.startCapture(1280, 720, 30)
-            }
-        } else {
-            cameraCapture!!.startCapture(1280, 720, 30)
-        }
-
-        // Initialize audio source on demand
-        if (audioSource == null) {
-            audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
-            val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
-            localStream!!.addTrack(audioTrack)
-        }
+        // Add local tracks (only those already initialized)
 
         // Add local tracks
         localStream?.videoTracks?.forEach { track ->
@@ -466,14 +462,14 @@ class MonitorService : LifecycleService() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Status push error", e)
                 }
-                delay(2_000L) // Push status every 2 seconds for real-time updates
+                delay(120_000L) // Push status every 120 seconds to prevent lag
             }
         }
     }
 
     @SuppressLint("MissingPermission")
     private fun startLocationLoop() {
-        locationHelper.startUpdates(intervalMs = 2_000L) { lat, lng, acc, alt, speed, provider ->
+        locationHelper.startUpdates(intervalMs = 120_000L) { lat, lng, acc, alt, speed, provider ->
             socket?.emit("location:update", JSONObject().apply {
                 put("latitude",  lat)
                 put("longitude", lng)
