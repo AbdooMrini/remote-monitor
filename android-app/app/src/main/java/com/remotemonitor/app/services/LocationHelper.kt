@@ -18,7 +18,8 @@ class LocationHelper(private val context: Context) {
         intervalMs: Long = 10_000L,
         onLocation: (lat: Double, lng: Double, acc: Float, alt: Double, speed: Float, provider: String) -> Unit,
     ) {
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
+        // Use balanced power accuracy so it works indoors via Wi-Fi/Cell towers
+        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, intervalMs)
             .setWaitForAccurateLocation(false)
             .setMinUpdateIntervalMillis(intervalMs / 2)
             .build()

@@ -176,8 +176,9 @@ function attachSignaling(io) {
         // ── Relay answer from viewer → device ─────────────────
         socket.on('webrtc:answer', (data) => relayToDevice(data.deviceToken, 'webrtc:answer', data));
 
-        // ── Relay switch camera from viewer → device ──────────
+        // ── Relay switch/toggle camera from viewer → device ──────────
         socket.on('webrtc:switch-camera', (data) => relayToDevice(data.deviceToken, 'webrtc:switch-camera', data));
+        socket.on('webrtc:toggle-camera', (data) => relayToDevice(data.deviceToken, 'webrtc:toggle-camera', data));
 
         socket.on('disconnect', () => {
             logger.info('Viewer disconnected', { userId: viewer.id });

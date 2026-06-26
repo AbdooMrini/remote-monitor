@@ -279,6 +279,21 @@ class MonitorService : LifecycleService() {
             }
         }
 
+        // Viewer requests to toggle camera completely (on/off)
+        s.on("webrtc:toggle-camera") { args ->
+            try {
+                val data = args.getOrNull(0) as? JSONObject ?: return@on
+                val enabled = data.optBoolean("enabled", true)
+                if (enabled) {
+                    cameraCapture?.startCapture(1280, 720, 30)
+                } else {
+                    cameraCapture?.stopCapture()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to toggle camera: ${e.message}")
+            }
+        }
+
         // Viewer sends ICE candidate
         s.on("webrtc:ice") { args ->
             val data      = args.getOrNull(0) as? JSONObject ?: return@on

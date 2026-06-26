@@ -30,6 +30,7 @@ const muteAudioBtn    = document.getElementById('muteAudioBtn');
 const fullscreenBtn   = document.getElementById('fullscreenBtn');
 const toggleCamBtn    = document.getElementById('toggleCamBtn');
 const flipCamBtn      = document.getElementById('flipCamBtn');
+const powerCamBtn     = document.getElementById('powerCamBtn');
 
 // ── Load devices into select ──────────────────────────────
 async function loadDeviceOptions() {
@@ -218,6 +219,16 @@ if (flipCamBtn) {
     flipCamBtn.addEventListener('click', () => {
         if (!selectedDevice || !socket) return;
         socket.emit('webrtc:switch-camera', { deviceToken: selectedDevice });
+    });
+}
+
+let cameraEnabled = true;
+if (powerCamBtn) {
+    powerCamBtn.addEventListener('click', () => {
+        if (!selectedDevice || !socket) return;
+        cameraEnabled = !cameraEnabled;
+        socket.emit('webrtc:toggle-camera', { deviceToken: selectedDevice, enabled: cameraEnabled });
+        powerCamBtn.textContent = cameraEnabled ? '📸 Cam On/Off' : '📸 Cam (Off)';
     });
 }
 
