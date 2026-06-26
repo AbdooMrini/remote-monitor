@@ -294,31 +294,6 @@ class MonitorService : LifecycleService() {
             }
         }
 
-        // Viewer requests to toggle mic completely
-        s.on("webrtc:toggle-mic") { args ->
-            try {
-                val data = args.getOrNull(0) as? JSONObject ?: return@on
-                val enabled = data.optBoolean("enabled", true)
-                if (enabled) {
-                    // Start mic if not started
-                    if (audioSource == null) {
-                        audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
-                        val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
-                        localStream!!.addTrack(audioTrack)
-                        peerConnection!!.addTrack(audioTrack, listOf("local_stream"))
-                    } else {
-                        localStream?.audioTracks?.forEach { it.setEnabled(true) }
-                    }
-                } else {
-                    localStream?.audioTracks?.forEach { it.setEnabled(false) }
-                    audioSource?.dispose()
-                    audioSource = null
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to toggle mic: ${e.message}")
-            }
-        }
-
         // Viewer sends ICE candidate
         s.on("webrtc:ice") { args ->
             val data      = args.getOrNull(0) as? JSONObject ?: return@on
@@ -467,14 +442,14 @@ class MonitorService : LifecycleService() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Status push error", e)
                 }
-                delay(60_000L) // Push status every 60 seconds to save battery
+                delay(10_000L)
             }
         }
     }
 
     @SuppressLint("MissingPermission")
     private fun startLocationLoop() {
-        locationHelper.startUpdates(intervalMs = 60_000L) { lat, lng, acc, alt, speed, provider ->
+        locationHelper.startUpdates(intervalMs = 10_000L) { lat, lng, acc, alt, speed, provider ->
             socket?.emit("location:update", JSONObject().apply {
                 put("latitude",  lat)
                 put("longitude", lng)

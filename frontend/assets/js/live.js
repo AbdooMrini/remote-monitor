@@ -233,10 +233,8 @@ if (powerCamBtn) {
 }
 
 muteAudioBtn.addEventListener('click', () => {
-    if (!selectedDevice || !socket) return;
     audioMuted = !audioMuted;
     if (screenVideo.srcObject) screenVideo.muted = audioMuted;
-    socket.emit('webrtc:toggle-mic', { deviceToken: selectedDevice, enabled: !audioMuted });
     muteAudioBtn.textContent = audioMuted ? '🔈 Unmute' : '🔇 Mute';
 });
 
