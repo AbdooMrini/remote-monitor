@@ -401,7 +401,7 @@ class MonitorService : LifecycleService() {
                 val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
                 localStream!!.addTrack(cameraTrack)
                 val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
-                cameraCapture!!.initialize(cameraSurfaceHelper, this.applicationContext, cameraVideoSource.capturerObserver)
+                cameraCapture!!.initialize(cameraSurfaceHelper, this@MonitorService.applicationContext, cameraVideoSource.capturerObserver)
                 cameraCapture!!.startCapture(1280, 720, 30)
             }
         } else {
