@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -108,6 +109,7 @@ class LoginActivity : AppCompatActivity() {
                 val devName  = android.os.Build.DEVICE
 
                 val regResp = api.registerDevice(
+                    "Bearer ${loginData.accessToken}",
                     RegisterDeviceRequest(devName, model, osVer, appVer)
                 )
                 if (!regResp.isSuccessful || regResp.body()?.success != true) {
@@ -162,5 +164,13 @@ class LoginActivity : AppCompatActivity() {
 
     private fun showError(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    }
+
+    private fun View.show() {
+        this.visibility = View.VISIBLE
+    }
+
+    private fun View.hide() {
+        this.visibility = View.GONE
     }
 }

@@ -36,6 +36,7 @@ class MonitorService : LifecycleService() {
     companion object {
         private const val TAG              = "MonitorService"
         const val ACTION_START             = "com.remotemonitor.START"
+        const val ACTION_START_BACKGROUND  = "com.remotemonitor.START_BACKGROUND"
         const val ACTION_STOP              = "com.remotemonitor.STOP"
         const val EXTRA_PROJECTION_DATA    = "projection_data"
         const val EXTRA_PROJECTION_RESULT  = "projection_result"
@@ -116,6 +117,22 @@ class MonitorService : LifecycleService() {
                 startStatusLoop()
                 startLocationLoop()
             }
+            ACTION_START_BACKGROUND -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(
+                        NOTIFICATION_ID, 
+                        buildNotification(), 
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                    )
+                } else {
+                    startForeground(NOTIFICATION_ID, buildNotification())
+                }
+
+                initWebRtc()
+                connectSocket()
+                startStatusLoop()
+                startLocationLoop()
+            }
         }
 
         return START_STICKY
@@ -159,12 +176,7 @@ class MonitorService : LifecycleService() {
 
             val surfaceTextureHelper = org.webrtc.SurfaceTextureHelper.create("CaptureThread", eglBase!!.eglBaseContext)
             screenCapture!!.initialize(surfaceTextureHelper, this.applicationContext, videoSource!!.capturerObserver)
-
-            screenCapture!!.startCapture(
-                resources.displayMetrics.widthPixels,
-                resources.displayMetrics.heightPixels,
-                30
-            )
+            // Screen capture will be started on demand
         }
 
         // ── Camera track ──────────────────────────────
@@ -176,7 +188,7 @@ class MonitorService : LifecycleService() {
 
             val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
             cameraCapture!!.initialize(cameraSurfaceHelper, this.applicationContext, cameraVideoSource.capturerObserver)
-            cameraCapture!!.startCapture(1280, 720, 30)
+            // Camera capture will be started on demand
         }
 
         // ── Microphone audio track ────────────────────────────
@@ -260,6 +272,15 @@ class MonitorService : LifecycleService() {
             val viewerSocketId = (args.getOrNull(0) as? JSONObject)?.optString("viewerSocketId") ?: return@on
             serviceScope.launch { createOffer(viewerSocketId) }
         }
+        
+        // Viewer requests to switch camera
+        s.on("webrtc:switch-camera") {
+            try {
+                (cameraCapture as? org.webrtc.CameraVideoCapturer)?.switchCamera(null)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to switch camera: ${e.message}")
+            }
+        }
 
         // Viewer sends ICE candidate
         s.on("webrtc:ice") { args ->
@@ -314,6 +335,16 @@ class MonitorService : LifecycleService() {
 
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
                 Log.d(TAG, "ICE state: $state")
+                if (state == PeerConnection.IceConnectionState.DISCONNECTED ||
+                    state == PeerConnection.IceConnectionState.FAILED ||
+                    state == PeerConnection.IceConnectionState.CLOSED) {
+                    try {
+                        screenCapture?.stopCapture()
+                        cameraCapture?.stopCapture()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to stop captures: ${e.message}")
+                    }
+                }
             }
 
             override fun onSignalingChange(state: PeerConnection.SignalingState?)   = Unit
@@ -326,6 +357,18 @@ class MonitorService : LifecycleService() {
             override fun onAddTrack(r: RtpReceiver?, s: Array<out MediaStream>?)    = Unit
             override fun onIceConnectionReceivingChange(r: Boolean)                 = Unit
         })
+
+        // Start captures on demand
+        if (screenCapture != null) {
+            screenCapture!!.startCapture(
+                resources.displayMetrics.widthPixels,
+                resources.displayMetrics.heightPixels,
+                30
+            )
+        }
+        if (cameraCapture != null) {
+            cameraCapture!!.startCapture(1280, 720, 30)
+        }
 
         // Add local tracks
         localStream?.videoTracks?.forEach { track ->

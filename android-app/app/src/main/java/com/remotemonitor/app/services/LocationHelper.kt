@@ -38,7 +38,12 @@ class LocationHelper(private val context: Context) {
             }
         }
 
-        fusedClient.requestLocationUpdates(request, callback!!, Looper.getMainLooper())
+        try {
+            fusedClient.requestLocationUpdates(request, callback!!, Looper.getMainLooper())
+        } catch (e: SecurityException) {
+            // Location permission revoked
+            callback = null
+        }
     }
 
     fun stopUpdates() {

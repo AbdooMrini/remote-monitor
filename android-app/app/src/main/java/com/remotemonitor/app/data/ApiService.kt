@@ -7,6 +7,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.Header
 import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
@@ -43,7 +44,10 @@ interface ApiService {
     suspend fun login(@Body req: LoginRequest): Response<LoginResponse>
 
     @POST("api/devices/register")
-    suspend fun registerDevice(@Body req: RegisterDeviceRequest): Response<RegisterDeviceResponse>
+    suspend fun registerDevice(
+        @Header("Authorization") authHeader: String,
+        @Body req: RegisterDeviceRequest
+    ): Response<RegisterDeviceResponse>
 
     @POST("api/auth/refresh")
     suspend fun refreshToken(@Body req: RefreshRequest): Response<RefreshResponse>

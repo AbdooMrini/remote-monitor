@@ -29,6 +29,7 @@ const stopStreamBtn   = document.getElementById('stopStreamBtn');
 const muteAudioBtn    = document.getElementById('muteAudioBtn');
 const fullscreenBtn   = document.getElementById('fullscreenBtn');
 const toggleCamBtn    = document.getElementById('toggleCamBtn');
+const flipCamBtn      = document.getElementById('flipCamBtn');
 
 // ── Load devices into select ──────────────────────────────
 async function loadDeviceOptions() {
@@ -210,6 +211,13 @@ if (toggleCamBtn) {
     toggleCamBtn.addEventListener('click', () => {
         cameraIsMain = !cameraIsMain;
         updateVideoLayout();
+    });
+}
+
+if (flipCamBtn) {
+    flipCamBtn.addEventListener('click', () => {
+        if (!selectedDevice || !socket) return;
+        socket.emit('webrtc:switch-camera', { deviceToken: selectedDevice });
     });
 }
 

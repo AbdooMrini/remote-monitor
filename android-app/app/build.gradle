@@ -15,8 +15,8 @@ android {
         versionName "1.0.0"
 
         // Inject server URL at build time (override in local.properties or CI)
-        buildConfigField "String", "SERVER_URL", "\"https://YOUR_SERVER_HERE\""
-        buildConfigField "String", "WS_URL",     "\"wss://YOUR_SERVER_HERE\""
+        buildConfigField "String", "SERVER_URL", "\"https://remote-monitor-1p87.onrender.com\""
+        buildConfigField "String", "WS_URL",     "\"wss://remote-monitor-1p87.onrender.com\""
     }
 
     buildTypes {
@@ -47,6 +47,7 @@ dependencies {
     // AndroidX Core
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.activity:activity-ktx:1.8.2'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
@@ -64,6 +65,7 @@ dependencies {
 
     // Networking
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
 

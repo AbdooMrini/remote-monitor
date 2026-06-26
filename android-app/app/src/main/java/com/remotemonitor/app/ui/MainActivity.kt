@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
     ) { permissions ->
         val allGranted = permissions.entries.all { it.value }
         if (allGranted) {
-            startScreenCapture()
+            requestBackgroundLocation()
         } else {
             Toast.makeText(this, "Permissions are required for monitoring.", Toast.LENGTH_LONG).show()
             finish()
@@ -56,6 +56,24 @@ class MainActivity : AppCompatActivity() {
         }
         
         permissionLauncher.launch(permissionsToRequest.toTypedArray())
+    }
+
+    private fun requestBackgroundLocation() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val bgPermissionLauncher = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    startScreenCapture()
+                } else {
+                    Toast.makeText(this, "Background location recommended.", Toast.LENGTH_SHORT).show()
+                    startScreenCapture()
+                }
+            }
+            bgPermissionLauncher.launch(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        } else {
+            startScreenCapture()
+        }
     }
 
     private fun startScreenCapture() {
