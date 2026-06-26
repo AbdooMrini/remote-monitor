@@ -285,7 +285,7 @@ class MonitorService : LifecycleService() {
                             cameraCapture!!.startCapture(1280, 720, 30)
                             
                             // renegotiate offer since we added a track
-                            serviceScope.launch { createOffer(data.optString("viewerSocketId")) }
+                            serviceScope.launch { renegotiateOffer(data.optString("viewerSocketId")) }
                         }
                     } else {
                         cameraCapture?.startCapture(1280, 720, 30)
@@ -312,7 +312,7 @@ class MonitorService : LifecycleService() {
                         peerConnection?.addTrack(audioTrack, listOf("local_stream"))
                         
                         // renegotiate offer since we added a track
-                        serviceScope.launch { createOffer(data.optString("viewerSocketId")) }
+                        serviceScope.launch { renegotiateOffer(data.optString("viewerSocketId")) }
                     } else {
                         localStream?.audioTracks?.forEach { it.setEnabled(true) }
                     }
@@ -430,6 +430,30 @@ class MonitorService : LifecycleService() {
             override fun onCreateSuccess(sdp: SessionDescription?) {
                 if (sdp == null) return
                 peerConnection!!.setLocalDescription(SimpleSdpObserver(), sdp)
+                val payload = JSONObject().apply {
+                    put("sdp", JSONObject().apply {
+                        put("type", sdp.type.canonicalForm())
+                        put("sdp",  sdp.description)
+                    })
+                    put("viewerSocketId", viewerSocketId)
+                    put("deviceToken",    session.deviceToken)
+                }
+                socket?.emit("webrtc:offer", payload)
+            }
+        }, constraints)
+    }
+
+    private suspend fun renegotiateOffer(viewerSocketId: String) = withContext(Dispatchers.IO) {
+        val pc = peerConnection ?: return@withContext
+        val constraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
+        }
+
+        pc.createOffer(object : SimpleSdpObserver() {
+            override fun onCreateSuccess(sdp: SessionDescription?) {
+                if (sdp == null) return
+                pc.setLocalDescription(SimpleSdpObserver(), sdp)
                 val payload = JSONObject().apply {
                     put("sdp", JSONObject().apply {
                         put("type", sdp.type.canonicalForm())
