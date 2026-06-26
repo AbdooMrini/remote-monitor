@@ -60,9 +60,24 @@ function attachSignaling(io) {
         });
 
         // ── WebRTC Signaling passthrough ──────────────────────
-        socket.on('webrtc:offer',     (data) => relayToViewers(device.device_token, 'webrtc:offer',     data));
-        socket.on('webrtc:answer',    (data) => relayToDevice(data.deviceToken, 'webrtc:answer',        data));
-        socket.on('webrtc:ice',       (data) => relayToViewers(device.device_token, 'webrtc:ice',       data));
+        socket.on('webrtc:offer', (data) => {
+            if (data.viewerSocketId) {
+                viewerNS.to(data.viewerSocketId).emit('webrtc:offer', data);
+            } else {
+                relayToViewers(device.device_token, 'webrtc:offer', data);
+            }
+        });
+        socket.on('webrtc:answer', (data) => relayToDevice(data.deviceToken, 'webrtc:answer', data));
+        socket.on('webrtc:ice', (data) => {
+             // Viewer → Device ICE uses relayToDevice. 
+             // Device → Viewer ICE (what this is) should ideally target viewerSocketId, 
+             // but relayToViewers is okay for 1:1, we'll keep it as is or broadcast if no viewerSocketId
+             if (data.viewerSocketId) {
+                  viewerNS.to(data.viewerSocketId).emit('webrtc:ice', data);
+             } else {
+                  relayToViewers(device.device_token, 'webrtc:ice', data);
+             }
+        });
 
         // ── Device status push ────────────────────────────────
         socket.on('status:update', async (data) => {
