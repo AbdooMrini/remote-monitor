@@ -179,21 +179,9 @@ class MonitorService : LifecycleService() {
             // Screen capture will be started on demand
         }
 
-        // ── Camera track ──────────────────────────────
-        cameraCapture = createCameraCapturer()
-        if (cameraCapture != null) {
-            val cameraVideoSource = peerConnectionFactory!!.createVideoSource(false)
-            val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
-            localStream!!.addTrack(cameraTrack)
-
-            val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
-            cameraCapture!!.initialize(cameraSurfaceHelper, this.applicationContext, cameraVideoSource.capturerObserver)
-            // Camera capture will be started on demand
-        }
-
-        // Microphone audio track will be initialized on demand
+        // Microphone and Camera tracks will be initialized on demand
         
-        Log.d(TAG, "Local stream built (video tracks only)")
+        Log.d(TAG, "Local stream built (screen track only)")
     }
 
     private fun createCameraCapturer(): VideoCapturer? {
@@ -405,7 +393,18 @@ class MonitorService : LifecycleService() {
                 30
             )
         }
-        if (cameraCapture != null) {
+        // Initialize camera on demand
+        if (cameraCapture == null) {
+            cameraCapture = createCameraCapturer()
+            if (cameraCapture != null) {
+                val cameraVideoSource = peerConnectionFactory!!.createVideoSource(false)
+                val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
+                localStream!!.addTrack(cameraTrack)
+                val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
+                cameraCapture!!.initialize(cameraSurfaceHelper, this.applicationContext, cameraVideoSource.capturerObserver)
+                cameraCapture!!.startCapture(1280, 720, 30)
+            }
+        } else {
             cameraCapture!!.startCapture(1280, 720, 30)
         }
 

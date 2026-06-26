@@ -114,6 +114,11 @@ function connectSignaling() {
         updateInfoPanel(data);
     });
 
+    socket.on('location:update', (data) => {
+        if (data.deviceToken !== selectedDevice) return;
+        document.getElementById('infoLocation').textContent = `${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}`;
+    });
+
     socket.on('device:offline', ({ deviceToken }) => {
         if (deviceToken !== selectedDevice) return;
         showToast('error', 'Device Offline', 'The device disconnected.');
@@ -260,6 +265,21 @@ function updateVideoLayout() {
         if (videoTracks.length > 1) {
             cameraVideo.srcObject = new MediaStream([videoTracks[1]]);
         }
+    }
+}
+
+function updateInfoPanel(data) {
+    document.getElementById('infoDevice').textContent = 'Connected';
+    if (data.battery_level !== undefined) {
+        document.getElementById('infoBattery').textContent = `${data.battery_level}% ${data.is_charging ? '(Charging)' : ''}`;
+    }
+    if (data.network_type) {
+        const ssid = data.wifi_ssid ? ` (${data.wifi_ssid})` : '';
+        document.getElementById('infoNetwork').textContent = `${data.network_type.toUpperCase()}${ssid}`;
+    }
+    document.getElementById('infoAndroid').textContent = 'Online';
+    if (data.public_ip) {
+        document.getElementById('infoIp').textContent = data.public_ip;
     }
 }
 function setStatus(text, cls) {
