@@ -45,7 +45,8 @@ form.addEventListener('submit', async (e) => {
 
     const email    = emailInput.value.trim();
     const password = pwInput.value;
-    const server   = (localStorage.getItem(SERVER_KEY) || '').trim() || window._serverUrl || '';
+    const PROD_URL = 'https://remote-monitor-1p87.onrender.com';
+    const server   = (localStorage.getItem(SERVER_KEY) || '').trim() || window._serverUrl || PROD_URL;
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         emailErr.textContent = 'Please enter a valid email address.';
