@@ -85,7 +85,12 @@ class MonitorService : LifecycleService() {
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
             ACTION_START -> {
                 val resultCode = intent.getIntExtra(EXTRA_PROJECTION_RESULT, -1)
-                val projData   = intent.getParcelableExtra<Intent>(EXTRA_PROJECTION_DATA)
+                val projData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(EXTRA_PROJECTION_DATA, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra<Intent>(EXTRA_PROJECTION_DATA)
+                }
                 projectionData = projData
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -162,12 +167,43 @@ class MonitorService : LifecycleService() {
             )
         }
 
+        // ── Camera track ──────────────────────────────
+        cameraCapture = createCameraCapturer()
+        if (cameraCapture != null) {
+            val cameraVideoSource = peerConnectionFactory!!.createVideoSource(false)
+            val cameraTrack = peerConnectionFactory!!.createVideoTrack("camera_track", cameraVideoSource)
+            localStream!!.addTrack(cameraTrack)
+
+            val cameraSurfaceHelper = org.webrtc.SurfaceTextureHelper.create("CameraThread", eglBase!!.eglBaseContext)
+            cameraCapture!!.initialize(cameraSurfaceHelper, this.applicationContext, cameraVideoSource.capturerObserver)
+            cameraCapture!!.startCapture(1280, 720, 30)
+        }
+
         // ── Microphone audio track ────────────────────────────
         audioSource = peerConnectionFactory!!.createAudioSource(MediaConstraints())
         val audioTrack = peerConnectionFactory!!.createAudioTrack("audio_track", audioSource!!)
         localStream!!.addTrack(audioTrack)
 
         Log.d(TAG, "Local stream built: ${localStream!!.videoTracks.size} video, ${localStream!!.audioTracks.size} audio tracks")
+    }
+
+    private fun createCameraCapturer(): VideoCapturer? {
+        val enumerator = Camera2Enumerator(this)
+        val deviceNames = enumerator.deviceNames
+
+        // Try front facing camera first
+        for (deviceName in deviceNames) {
+            if (enumerator.isFrontFacing(deviceName)) {
+                return enumerator.createCapturer(deviceName, null)
+            }
+        }
+        // Try back facing camera
+        for (deviceName in deviceNames) {
+            if (enumerator.isBackFacing(deviceName)) {
+                return enumerator.createCapturer(deviceName, null)
+            }
+        }
+        return null
     }
 
     // ─────────────────────────────────────────────────────────
@@ -393,6 +429,9 @@ class MonitorService : LifecycleService() {
         socket?.off()
         peerConnection?.dispose()
         screenCapture?.stopCapture()
+        screenCapture?.dispose()
+        cameraCapture?.stopCapture()
+        cameraCapture?.dispose()
         audioSource?.dispose()
         videoSource?.dispose()
         peerConnectionFactory?.dispose()
