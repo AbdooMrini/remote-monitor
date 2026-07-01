@@ -21,6 +21,8 @@ function attachSignaling(io) {
     const deviceSockets = new Map();
     // deviceToken → Set<socketId> (viewer side)
     const viewerSockets = new Map();
+    // deviceToken → viewer count
+    const deviceViewerCount = new Map();
 
     // ─────────────────────────────────────────────────────────
     // DEVICE NAMESPACE — Android app
@@ -69,14 +71,23 @@ function attachSignaling(io) {
         });
         socket.on('webrtc:answer', (data) => relayToDevice(data.deviceToken, 'webrtc:answer', data));
         socket.on('webrtc:ice', (data) => {
-             // Viewer → Device ICE uses relayToDevice. 
-             // Device → Viewer ICE (what this is) should ideally target viewerSocketId, 
-             // but relayToViewers is okay for 1:1, we'll keep it as is or broadcast if no viewerSocketId
              if (data.viewerSocketId) {
                   viewerNS.to(data.viewerSocketId).emit('webrtc:ice', data);
              } else {
                   relayToViewers(device.device_token, 'webrtc:ice', data);
              }
+        });
+
+        // ── Command relay: device ACK → viewers ─────────────
+        socket.on('viewer:device:command:ack', (data) => {
+            if (!data || !data.deviceToken) return;
+            relayToViewers(data.deviceToken, 'viewer:device:command:ack', data);
+        });
+
+        // ── Command relay: device result → viewers ──────────
+        socket.on('viewer:device:command:result', (data) => {
+            if (!data || !data.deviceToken) return;
+            relayToViewers(data.deviceToken, 'viewer:device:command:result', data);
         });
 
         // ── Device status push ────────────────────────────────
@@ -163,8 +174,17 @@ function attachSignaling(io) {
             socket.join(`room:${deviceToken}`);
             logger.info('Viewer watching device', { userId: viewer.id, deviceToken });
 
-            // Request device to initiate WebRTC offer
+            // Track viewer count
+            const count = viewerSockets.get(deviceToken)?.size || 0;
+            deviceViewerCount.set(deviceToken, count);
+
+            // Notify device of viewer count change
             const deviceSocketId = deviceSockets.get(deviceToken);
+            if (deviceSocketId) {
+                deviceNS.to(deviceSocketId).emit('viewer:count', { count });
+            }
+
+            // Request device to initiate WebRTC offer
             if (deviceSocketId) {
                 deviceNS.to(deviceSocketId).emit('webrtc:request-offer', { viewerSocketId: socket.id });
             }
@@ -180,10 +200,26 @@ function attachSignaling(io) {
         socket.on('webrtc:switch-camera', (data) => relayToDevice(data.deviceToken, 'webrtc:switch-camera', data));
         socket.on('webrtc:toggle-camera', (data) => relayToDevice(data.deviceToken, 'webrtc:toggle-camera', data));
 
+        // ── Command relay: viewer → device ────────────────────
+        socket.on('viewer:device:command', (data) => {
+            const { deviceToken, commandId } = data;
+            if (!deviceToken || !commandId) return;
+
+            logger.info('Command relay', { command: data.command, deviceToken, viewerId: viewer.id });
+            relayCommand(deviceToken, data, socket);
+        });
+
         socket.on('disconnect', () => {
             logger.info('Viewer disconnected', { userId: viewer.id });
             viewerSockets.forEach((set, dt) => {
-                set.delete(socket.id);
+                if (set.delete(socket.id)) {
+                    const count = set.size;
+                    deviceViewerCount.set(dt, count);
+                    const deviceSocketId = deviceSockets.get(dt);
+                    if (deviceSocketId) {
+                        deviceNS.to(deviceSocketId).emit('viewer:count', { count });
+                    }
+                }
                 if (set.size === 0) viewerSockets.delete(dt);
             });
         });
@@ -200,6 +236,21 @@ function attachSignaling(io) {
         const deviceSocketId = deviceSockets.get(deviceToken);
         if (!deviceSocketId) return;
         deviceNS.to(deviceSocketId).emit(event, data);
+    }
+
+    function relayCommand(deviceToken, commandData, socket) {
+        const deviceSocketId = deviceSockets.get(deviceToken);
+        if (!deviceSocketId) {
+            socket.emit('viewer:device:command:result', {
+                commandId: commandData.commandId,
+                deviceToken,
+                status: 'error',
+                error: 'Device offline'
+            });
+            return false;
+        }
+        deviceNS.to(deviceSocketId).emit('viewer:device:command', commandData);
+        return true;
     }
 
     function notifyViewers(deviceToken, event, data) {
