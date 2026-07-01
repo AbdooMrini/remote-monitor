@@ -7,22 +7,31 @@ import com.google.android.gms.location.*
 
 /**
  * Wraps FusedLocationProviderClient with a clean callback interface.
+ * Supports configurable intervals, priorities, and single-shot requests.
  */
 class LocationHelper(private val context: Context) {
 
     private val fusedClient = LocationServices.getFusedLocationProviderClient(context)
     private var callback: LocationCallback? = null
+    private var currentIntervalMs: Long = 10_000L
+    private var currentPriority: Int = Priority.PRIORITY_BALANCED_POWER_ACCURACY
 
     @SuppressLint("MissingPermission")
     fun startUpdates(
         intervalMs: Long = 10_000L,
+        priority: Int = Priority.PRIORITY_BALANCED_POWER_ACCURACY,
         onLocation: (lat: Double, lng: Double, acc: Float, alt: Double, speed: Float, provider: String) -> Unit,
     ) {
-        // Use balanced power accuracy so it works indoors via Wi-Fi/Cell towers
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, intervalMs)
-            .setWaitForAccurateLocation(false)
+        currentIntervalMs = intervalMs
+        currentPriority = priority
+
+        val request = LocationRequest.Builder(priority, intervalMs)
+            .setWaitForAccurateLocation(priority == Priority.PRIORITY_HIGH_ACCURACY)
             .setMinUpdateIntervalMillis(intervalMs / 2)
             .build()
+
+        // Remove any existing callback before starting new updates
+        callback?.let { fusedClient.removeLocationUpdates(it) }
 
         callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -45,6 +54,24 @@ class LocationHelper(private val context: Context) {
             // Location permission revoked
             callback = null
         }
+    }
+
+    /**
+     * Restart location updates with a new interval and priority.
+     * Used for adaptive location frequency (e.g., high-frequency mode).
+     */
+    @SuppressLint("MissingPermission")
+    fun restartWithInterval(
+        newIntervalMs: Long,
+        priority: Int = Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+        onLocation: (lat: Double, lng: Double, acc: Float, alt: Double, speed: Float, provider: String) -> Unit,
+    ) {
+        stopUpdates()
+        startUpdates(
+            intervalMs = newIntervalMs,
+            priority = priority,
+            onLocation = onLocation
+        )
     }
 
     fun stopUpdates() {

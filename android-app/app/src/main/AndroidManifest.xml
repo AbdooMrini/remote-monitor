@@ -46,9 +46,13 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Flashlight -->
+    <uses-permission android:name="android.permission.FLASHLIGHT" />
+
     <!-- Hardware features (optional — don't block non-camera devices) -->
     <uses-feature android:name="android.hardware.camera"          android:required="false" />
     <uses-feature android:name="android.hardware.camera.front"    android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash"    android:required="false" />
     <uses-feature android:name="android.hardware.microphone"      android:required="false" />
     <uses-feature android:name="android.hardware.location.gps"   android:required="false" />
 

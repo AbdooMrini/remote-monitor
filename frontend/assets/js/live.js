@@ -31,6 +31,33 @@ const fullscreenBtn   = document.getElementById('fullscreenBtn');
 const toggleCamBtn    = document.getElementById('toggleCamBtn');
 const flipCamBtn      = document.getElementById('flipCamBtn');
 const powerCamBtn     = document.getElementById('powerCamBtn');
+const flashBtn        = document.getElementById('flashBtn');
+const muteRemoteBtn   = document.getElementById('muteRemoteBtn');
+const highFreqLocBtn  = document.getElementById('highFreqLocBtn');
+const getLocBtn       = document.getElementById('getLocBtn');
+
+// ── Command Manager ───────────────────────────────────────
+const pendingCommands = new Map();
+
+function sendCommand(command, payload = {}) {
+    return new Promise((resolve, reject) => {
+        const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const timeout = setTimeout(() => {
+            pendingCommands.delete(commandId);
+            reject(new Error('Command timeout'));
+        }, 10000);
+
+        pendingCommands.set(commandId, { resolve, reject, timeout });
+
+        socket.emit('viewer:device:command', {
+            commandId,
+            deviceToken: selectedDevice,
+            command,
+            payload,
+            timestamp: Date.now()
+        });
+    });
+}
 
 // ── Load devices into select ──────────────────────────────
 async function loadDeviceOptions() {
@@ -118,6 +145,20 @@ function connectSignaling() {
         if (deviceToken !== selectedDevice) return;
         showToast('error', 'Device Offline', 'The device disconnected.');
         stopStream();
+    });
+
+    // ── Command responses ──────────────────────────────────
+    socket.on('viewer:device:command:ack', ({ commandId }) => {
+        console.log(`Command ${commandId} acknowledged`);
+    });
+
+    socket.on('viewer:device:command:result', ({ commandId, status, result, error }) => {
+        const pending = pendingCommands.get(commandId);
+        if (!pending) return;
+        clearTimeout(pending.timeout);
+        pendingCommands.delete(commandId);
+        if (status === 'success') pending.resolve(result);
+        else pending.reject(new Error(error || 'Command failed'));
     });
 }
 
@@ -244,6 +285,96 @@ fullscreenBtn.addEventListener('click', () => {
     else container.requestFullscreen?.();
 });
 
+// ════════════════════════════════════════════════════════════
+//  REMOTE CONTROLS
+// ════════════════════════════════════════════════════════════
+
+// ── Flash LED toggle ──────────────────────────────────────
+let flashOn = false;
+if (flashBtn) {
+    flashBtn.addEventListener('click', async () => {
+        if (!selectedDevice || !socket) return;
+        try {
+            setButtonLoading(flashBtn, true);
+            const result = await sendCommand('flash:toggle', { on: !flashOn });
+            flashOn = result.on;
+            flashBtn.textContent = flashOn ? '🔦 Flash OFF' : '🔦 Flash ON';
+            flashBtn.classList.toggle('btn-active', flashOn);
+            showToast('success', 'Flash', flashOn ? 'Flash ON' : 'Flash OFF');
+        } catch (e) {
+            showToast('error', 'Flash', e.message);
+        } finally {
+            setButtonLoading(flashBtn, false);
+        }
+    });
+}
+
+// ── Remote microphone mute ────────────────────────────────
+let remoteMuted = false;
+if (muteRemoteBtn) {
+    muteRemoteBtn.addEventListener('click', async () => {
+        if (!selectedDevice || !socket) return;
+        try {
+            setButtonLoading(muteRemoteBtn, true);
+            const result = await sendCommand('audio:mute', { muted: !remoteMuted });
+            remoteMuted = result.muted;
+            muteRemoteBtn.textContent = remoteMuted ? '🎤 Unmute Remote' : '🎤 Mute Remote';
+            muteRemoteBtn.classList.toggle('btn-active', remoteMuted);
+            showToast('success', 'Audio', remoteMuted ? 'Micro distant mute' : 'Micro distant actif');
+        } catch (e) {
+            showToast('error', 'Audio', e.message);
+        } finally {
+            setButtonLoading(muteRemoteBtn, false);
+        }
+    });
+}
+
+// ── High-frequency location mode ──────────────────────────
+let highFreqLoc = false;
+if (highFreqLocBtn) {
+    highFreqLocBtn.addEventListener('click', async () => {
+        if (!selectedDevice || !socket) return;
+        try {
+            setButtonLoading(highFreqLocBtn, true);
+            const newState = !highFreqLoc;
+            const result = await sendCommand('location:highfreq', {
+                enabled: newState,
+                intervalMs: 3000
+            });
+            highFreqLoc = result.enabled;
+            highFreqLocBtn.textContent = highFreqLoc ? '📍 Loc Normal' : '📍 Loc Realtime';
+            highFreqLocBtn.classList.toggle('btn-active', highFreqLoc);
+            showToast('success', 'Location', highFreqLoc ? 'Mode temps reel ON (3s)' : 'Mode normal');
+        } catch (e) {
+            showToast('error', 'Location', e.message);
+        } finally {
+            setButtonLoading(highFreqLocBtn, false);
+        }
+    });
+}
+
+// ── Get single location ───────────────────────────────────
+if (getLocBtn) {
+    getLocBtn.addEventListener('click', async () => {
+        if (!selectedDevice || !socket) return;
+        try {
+            setButtonLoading(getLocBtn, true);
+            const result = await sendCommand('location:single', { highAccuracy: true });
+            showToast('success', 'Position',
+                `${result.lat?.toFixed(5)}, ${result.lng?.toFixed(5)} (±${result.accuracy?.toFixed(0)}m)`);
+            // Update info panel
+            document.getElementById('infoLocation').textContent =
+                `${result.lat?.toFixed(5)}, ${result.lng?.toFixed(5)}`;
+        } catch (e) {
+            showToast('error', 'Position', e.message);
+        } finally {
+            setButtonLoading(getLocBtn, false);
+        }
+    });
+}
+
+// ════════════════════════════════════════════════════════════
+
 // ── Helpers ───────────────────────────────────────────────
 function updateVideoLayout() {
     if (!remoteStream) return;
@@ -260,6 +391,12 @@ function updateVideoLayout() {
         }
     }
 }
+
+function setButtonLoading(btn, loading) {
+    btn.disabled = loading;
+    btn.style.opacity = loading ? '0.6' : '1';
+}
+
 function setStatus(text, cls) {
     liveStatus.className  = `chip ${cls}`;
     liveStatus.textContent = text;
